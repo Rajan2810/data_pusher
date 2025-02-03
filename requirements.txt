@@ -5,3 +5,4 @@ pandas==2.1.1
 numpy==1.26.4
 streamlit-elements==0.1.0
 streamlit-aggrid==0.3.3
+altair==4.2.2
