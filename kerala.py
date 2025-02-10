@@ -1,24 +1,23 @@
 import streamlit as st
+import socket
 import requests
 from datetime import datetime
 import pytz
 import pandas as pd
 import re
-#import plotly.express as px
 
-# Initialize logs and errors in session state
+# ----- Session State Initialization for Logging -----
 if 'logs' not in st.session_state:
     st.session_state.logs = []
 if 'errors' not in st.session_state:
     st.session_state.errors = []
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
 
-
-# Function to check login credentials
+# ----- Helper Functions -----
 def check_credentials(username, password):
     return username == "admin" and password == "Sangwan@2002"
 
-
-# Function to log activity
 def log_activity(action, status, details):
     now = datetime.now(pytz.timezone('Asia/Kolkata'))
     log_entry = {
@@ -29,8 +28,6 @@ def log_activity(action, status, details):
     }
     st.session_state.logs.append(log_entry)
 
-
-# Function to log errors
 def log_error(action, error_message):
     now = datetime.now(pytz.timezone('Asia/Kolkata'))
     error_entry = {
@@ -40,14 +37,12 @@ def log_error(action, error_message):
     }
     st.session_state.errors.append(error_entry)
 
-
-# Function to extract IMEI, latitude, and longitude from the provided format
 def extract_data_from_format(data_format):
+    """Extract IMEI, latitude, and longitude from a given format string."""
     try:
         imei = re.search(r'#(\d{15})#', data_format).group(1)
         lat = re.search(r'#(\d+\.\d+),N,', data_format).group(1)
         long = re.search(r',N,(\d+\.\d+),E,', data_format).group(1)
-        # Ensure latitude and longitude are correctly formatted
         lat = f"{float(lat):09.6f}"
         long = f"{float(long):09.6f}"
         return imei, lat, long
@@ -56,202 +51,172 @@ def extract_data_from_format(data_format):
         log_error("Extract Data", "Invalid format")
         return None, None, None
 
+def send_tcp_packet(ip, port, packet):
+    """Send a TCP packet using the socket module."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_socket:
+            tcp_socket.connect((ip, port))
+            tcp_socket.sendall(packet.encode('utf-8'))
+        return f"✅ TCP packet sent to {ip}:{port} successfully!"
+    except Exception as e:
+        return f"❌ Error sending TCP packet: {e}"
 
-# Function to create a Plotly geo graph highlighting the location
-def create_geo_graph(lat, long):
-    fig = px.scatter_geo(lat=[lat], lon=[long], scope='asia', title='IMEI Location')
-    fig.update_traces(marker=dict(size=20, symbol='circle-open'))
-    fig.add_scattergeo(lat=[lat], lon=[long], marker=dict(size=30, symbol='circle-open'))
-    return fig
+def send_http_data(api_url, data):
+    """Send data via HTTP POST request."""
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    try:
+        response = requests.post(api_url, data=data, headers=headers)
+        response.raise_for_status()
+        try:
+            response_json = response.json()
+            return f"✅ HTTP data sent successfully!", response_json
+        except ValueError:
+            return f"✅ HTTP data sent successfully!", response.text
+    except requests.exceptions.RequestException as e:
+        return f"❌ HTTP request failed: {e}", None
 
+# ----- Mappings for Endpoints and Default Packets -----
+# TCP endpoints for states (these states have distinct IP/port and packet structure)
+tcp_states = {
+    "Chhattisgarh": {"ip": "164.100.64.209", "port": 6004},
+    "Bihar": {"ip": "164.100.64.230", "port": 9031},
+    "Uttarakhand": {"ip": "103.116.27.26", "port": 9999},
+    "Chandigarh": {"ip": "164.100.64.250", "port": 9031},
+    "Maharashtra": {"ip": "103.91.244.23", "port": 4030},
+    "Jammu": {"ip": "164.52.220.32", "port": 2049},
+}
 
-# Main app
-st.title('State Backend Kerala Tool')
+# HTTP endpoints for manual data sender (for Kerala, West Bengal, etc.)
+http_states = {
+    "Kerala": "http://103.135.130.119:80",
+    "West Bengal": "http://117.221.20.174:80?vltdata",
+    # Add more if needed
+}
 
-# Basic Authentication
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
+# ----- Main App -----
+st.title('Modified Packet Sender Dashboard')
 
+# ----- Authentication -----
 if not st.session_state.logged_in:
+    st.subheader("Please Login")
     username = st.text_input('Username')
     password = st.text_input('Password', type='password')
     if st.button('Login'):
         if check_credentials(username, password):
             st.session_state.logged_in = True
             st.success('Login successful!')
+            log_activity("Login", "Success", f"User {username} logged in.")
         else:
             st.error('Invalid credentials')
-else:
-    # Tabs for different functionalities
-    tab1, tab2, tab3, tab4 = st.tabs(["Configure Endpoints", "Manual Data Sender", "Activity Logs", "Analytics"])
+            log_activity("Login", "Failed", f"Invalid login attempt for {username}.")
+    st.stop()  # Stop further execution until login is successful
 
-    # Configure Endpoints section
-    with tab1:
-        st.header('Configure Endpoints')
-        # Hardcoded API URL
-        api_url = 'http://34.194.133.72:8888/update'
+# ----- Tabs for Different Functionalities -----
+tab_tcp, tab_http, tab_logs = st.tabs(["TCP Packet Sender", "HTTP Manual Data Sender", "Activity Logs"])
 
-        # Input fields for parameters
-        imei = st.text_input('IMEI (15 digits)', max_chars=15)
-        compliance = st.selectbox('Compliance', ['CDAC', 'AIS'], index=0)
-
-        if st.button('Send Request'):
-            if len(imei) != 15 or not imei.isdigit():
-                st.error('IMEI must be a 15-digit number.')
-                log_activity("Send Request", "Failed", f"Invalid IMEI: {imei}")
-            else:
-                data = {'imei': imei, 'compliance': compliance}
-                headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-                try:
-                    response = requests.post(api_url, data=data, headers=headers)
-                    response.raise_for_status()
-                    st.success('Request successful!')
-                    try:
-                        response_json = response.json()
-                        st.json(response_json)
-                        log_activity("Send Request", "Success",
-                                     f"IMEI: {imei}, Compliance: {compliance}, Response: {response_json}")
-                    except ValueError:
-                        st.write(response.text)
-                        log_activity("Send Request", "Success",
-                                     f"IMEI: {imei}, Compliance: {compliance}, Response: {response.text}")
-                except requests.exceptions.RequestException as e:
-                    st.error(f'Request failed: {e}')
-                    log_activity("Send Request", "Failed", f"IMEI: {imei}, Compliance: {compliance}, Error: {e}")
-                    log_error("Send Request", str(e))
-
-    # Manual Data Sender section
-    with tab2:
-        st.header('Manual Data Sender')
-
-        # Hardcoded API URL for manual data sender
-        manual_api_url = 'http://103.135.130.119:80'
-
-        # Dropdown to choose input method
-        input_method = st.selectbox('Input Method', ['Manual Entry', 'Extract from Format'])
-
-        if input_method == 'Manual Entry':
-            # Input fields for parameters
-            imei_manual = st.text_input('IMEI for Manual Data (15 digits)', max_chars=15)
-            latitude = st.text_input('Latitude')
-            longitude = st.text_input('Longitude')
-
+# ---- Tab 1: TCP Packet Sender for Specific States ----
+with tab_tcp:
+    st.header("TCP Packet Sender")
+    state_tcp = st.selectbox("Select State (TCP)", list(tcp_states.keys()))
+    
+    # Set default IP/port based on selection; allow override if needed.
+    default_tcp = tcp_states[state_tcp]
+    ip_tcp = st.text_input("Target IP", value=default_tcp["ip"])
+    port_tcp = st.number_input("Target Port", min_value=1, max_value=65535, value=default_tcp["port"])
+    
+    # Generate a default packet structure for the selected state.
+    default_packet_tcp = (f"$NMP,{state_tcp.upper()},AIS01.1,IF,08,L,864568069809003,VRN_TMP22,"
+                          "1,21122024,062855,20.0704536,N,73.9026718,E,000.00,191.00,48,0611,"
+                          "0.61,0.39,airtel,0,1,25.4,4.0,0,C,30,404,90,18C3,E37BB66,"
+                          " -61,164,39150,-73,163,39150,x,x,x,x,x,x,0000,10,000001,0.0,0.0,0,(0,0,0)*120")
+    
+    packet_tcp = st.text_area("Packet Data (TCP)", value=default_packet_tcp, height=150)
+    
+    if st.button("Send TCP Packet"):
+        result_tcp = send_tcp_packet(ip_tcp, port_tcp, packet_tcp)
+        if "✅" in result_tcp:
+            st.success(result_tcp)
+            log_activity("TCP Packet Sender", "Success", f"State: {state_tcp}, IP: {ip_tcp}, Port: {port_tcp}")
         else:
-            data_format = st.text_area('Data Format')
+            st.error(result_tcp)
+            log_error("TCP Packet Sender", result_tcp)
 
-        if st.button('Send Manual Data'):
-            if input_method == 'Extract from Format':
-                imei_manual, latitude, longitude = extract_data_from_format(data_format)
-                if not imei_manual or not latitude or not longitude:
-                    st.error('Failed to extract data from format.')
-                    log_activity("Send Manual Data", "Failed", "Failed to extract data from format")
-                    pass
-
-            if imei_manual is None or len(imei_manual) != 15 or not imei_manual.isdigit():
-                st.error('IMEI must be a 15-digit number.')
-                log_activity("Send Manual Data", "Failed", f"Invalid IMEI: {imei_manual}")
+# ---- Tab 2: HTTP Manual Data Sender for Other States ----
+with tab_http:
+    st.header("HTTP Manual Data Sender")
+    state_http = st.selectbox("Select State (HTTP)", list(http_states.keys()))
+    manual_api_url = http_states[state_http]
+    st.write(f"Using API URL: {manual_api_url}")
+    
+    # Choose input method for packet details.
+    input_method = st.selectbox("Input Method", ["Manual Entry", "Extract from Format"])
+    
+    if input_method == "Manual Entry":
+        imei_list = st.text_area("IMEIs (comma-separated, each 15 digits)")
+        latitude = st.text_input("Latitude")
+        longitude = st.text_input("Longitude")
+    else:
+        data_format = st.text_area("Data Format (include #IMEI#, #lat,N, and ,N,long,E, markers)")
+    
+    if st.button("Send HTTP Data"):
+        if input_method == "Extract from Format":
+            imei_http, latitude, longitude = extract_data_from_format(data_format)
+            if not imei_http or not latitude or not longitude:
+                st.error("Failed to extract data from format.")
+                log_activity("HTTP Data Sender", "Failed", "Extraction error")
+                st.stop()
+            imei_list = imei_http  # In extraction mode, we assume a single IMEI.
+        else:
+            imei_list = [x.strip() for x in imei_list.split(",") if x.strip()]
+        
+        for imei in (imei_list if isinstance(imei_list, list) else [imei_list]):
+            if len(imei) != 15 or not imei.isdigit():
+                st.error(f"IMEI must be a 15-digit number: {imei}")
+                log_activity("HTTP Data Sender", "Failed", f"Invalid IMEI: {imei}")
+                continue
+            
+            # Get current date and time (Asia/Kolkata timezone)
+            delhi_tz = pytz.timezone('Asia/Kolkata')
+            now = datetime.now(delhi_tz)
+            date_str = now.strftime('%d%m%y')
+            time_str = now.strftime('%H%M%S')
+            
+            # Format the packet (you may modify the format as needed)
+            packet_http = (f"NRM{imei}01L1{date_str}{time_str}0{latitude}N0{longitude}E404x950D2900"
+                           "DC06A72000.00000.0053001811M0827.00airtel")
+            data_payload = {'vltdata': packet_http}
+            result_http, response_content = send_http_data(manual_api_url, data_payload)
+            if "✅" in result_http:
+                st.success(f"{result_http} for IMEI: {imei}")
+                st.write(f"Packet Sent: {packet_http}")
+                log_activity("HTTP Data Sender", "Success", f"IMEI: {imei}, Packet: {packet_http}")
+                if response_content:
+                    st.json(response_content) if isinstance(response_content, dict) else st.write(response_content)
             else:
-                # Get current date and time in Delhi timezone
-                delhi_tz = pytz.timezone('Asia/Kolkata')
-                now = datetime.now(delhi_tz)
-                date_str = now.strftime('%d%m%y')
-                time_str = now.strftime('%H%M%S')
-                # Format the packet
-                packet = f'NRM{imei_manual}01L1{date_str}{time_str}0{latitude}N0{longitude}E404x950D2900DC06A72000.00000.0053001811M0827.00airtel'
-                data = {'vltdata': packet}
-                headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-                try:
-                    response = requests.post(manual_api_url, data=data, headers=headers)
-                    response.raise_for_status()
-                    st.success('Manual data sent successfully!')
-                    st.write(f"Packet Sent: {packet}")
-                    try:
-                        response_json = response.json()
-                        st.json(response_json)
-                        log_activity("Send Manual Data", "Success",
-                                     f"IMEI: {imei_manual}, Latitude: {latitude}, Longitude: {longitude}, Response: {response_json}")
-                    except ValueError:
-                        st.write(response.text)
-                        log_activity("Send Manual Data", "Success",
-                                     f"IMEI: {imei_manual}, Latitude: {latitude}, Longitude: {longitude}, Response: {response.text}")
-                except requests.exceptions.RequestException as e:
-                    st.error(f'Manual data send failed: {e}')
-                    log_activity("Send Manual Data", "Failed",
-                                 f"IMEI: {imei_manual}, Latitude: {latitude}, Longitude: {longitude}, Error: {e}")
-                    log_error("Send Manual Data", str(e))
+                st.error(f"HTTP data send failed for IMEI: {imei}")
+                log_error("HTTP Data Sender", f"IMEI: {imei}, Error: {result_http}")
 
-    # Activity Logs section
-    with tab3:
-        st.header('Activity Logs')
-        # Display logs
+# ---- Tab 3: Activity Logs ----
+with tab_logs:
+    st.header("Activity & Error Logs")
+    if st.session_state.logs:
         df_logs = pd.DataFrame(st.session_state.logs)
-        st.subheader('Activity Logs')
+        st.subheader("Activity Logs")
         st.dataframe(df_logs)
-        # Download logs as CSV or text
         csv_logs = df_logs.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download logs as CSV",
-            data=csv_logs,
-            file_name='activity_logs.csv',
-            mime='text/csv',
-            key='download-logs-csv'
-        )
+        st.download_button("Download Activity Logs (CSV)", data=csv_logs, file_name='activity_logs.csv', mime='text/csv')
         text_logs = df_logs.to_string(index=False)
-        st.download_button(
-            label="Download logs as Text",
-            data=text_logs,
-            file_name='activity_logs.txt',
-            mime='text/plain',
-            key='download-logs-text'
-        )
-        # Display error logs
+        st.download_button("Download Activity Logs (Text)", data=text_logs, file_name='activity_logs.txt', mime='text/plain')
+    else:
+        st.info("No activity logs yet.")
+
+    if st.session_state.errors:
         df_errors = pd.DataFrame(st.session_state.errors)
-        st.subheader('Error Logs')
+        st.subheader("Error Logs")
         st.dataframe(df_errors)
-        # Download error logs as CSV or text
         csv_errors = df_errors.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download error logs as CSV",
-            data=csv_errors,
-            file_name='error_logs.csv',
-            mime='text/csv',
-            key='download-errors-csv'
-        )
+        st.download_button("Download Error Logs (CSV)", data=csv_errors, file_name='error_logs.csv', mime='text/csv')
         text_errors = df_errors.to_string(index=False)
-        st.download_button(
-            label="Download error logs as Text",
-            data=text_errors,
-            file_name='error_logs.txt',
-            mime='text/plain',
-            key='download-errors-text'
-        )
-
-        # Analytics section
-        with tab4:
-            st.header('Analytics')
-            # Plot activity logs
-            if not df_logs.empty:
-                fig = px.line(df_logs, x='Timestamp', y='Action', title='User Activities Over Time')
-                st.plotly_chart(fig)
-            else:
-                st.write("No activity logs to display.")
-
-            # Plot IMEI locations on a map
-            if not df_logs.empty:
-                imei_locations = df_logs[['Details']].dropna()
-                imei_locations = imei_locations[imei_locations['Details'].str.contains('IMEI')]
-                imei_locations['Latitude'] = imei_locations['Details'].apply(
-                    lambda x: re.search(r'Latitude: (\d+\.\d+)', x).group(1) if re.search(r'Latitude: (\d+\.\d+)',
-                                                                                          x) else None)
-                imei_locations['Longitude'] = imei_locations['Details'].apply(
-                    lambda x: re.search(r'Longitude: (\d+\.\d+)', x).group(1) if re.search(r'Longitude: (\d+\.\d+)',
-                                                                                           x) else None)
-                imei_locations = imei_locations.dropna(subset=['Latitude', 'Longitude'])
-
-                if not imei_locations.empty:
-                    fig = px.scatter_geo(imei_locations, lat='Latitude', lon='Longitude', title='IMEI Locations')
-                    fig.update_traces(marker=dict(size=20, symbol='circle-open'))
-                    st.plotly_chart(fig)
-                else:
-                    st.write("No IMEI locations to display.")
-
+        st.download_button("Download Error Logs (Text)", data=text_errors, file_name='error_logs.txt', mime='text/plain')
+    else:
+        st.info("No error logs yet.")
