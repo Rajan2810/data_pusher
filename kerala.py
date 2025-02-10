@@ -16,7 +16,7 @@ if 'logged_in' not in st.session_state:
 
 # ===== Helper Functions =====
 def check_credentials(username, password):
-    # Change credentials as needed
+    # Modify these credentials as needed.
     return username == "admin" and password == "Sangwan@2002"
 
 def log_activity(action, status, details):
@@ -36,22 +36,64 @@ def log_error(action, error_message):
         "Error": error_message
     })
 
-def extract_data_from_format(data_format):
-    """Extract IMEI, latitude, and longitude from a provided format string.
-       Markers: '#<15-digit IMEI>#' and '#<lat>,N,' and ',N,<lon>,E,'"""
-    try:
-        imei = re.search(r'#(\d{15})#', data_format).group(1)
-        lat = re.search(r'#(\d+\.\d+),N,', data_format).group(1)
-        lon = re.search(r',N,(\d+\.\d+),E,', data_format).group(1)
-        # Format lat and lon
-        lat = f"{float(lat):09.6f}"
-        lon = f"{float(lon):09.6f}"
-        return imei, lat, lon
-    except AttributeError:
-        st.error('Invalid format. Please ensure the markers are correctly placed.')
-        log_error("Extract Data", "Invalid format provided")
-        return None, None, None
+def compute_nmea_checksum(data: str) -> str:
+    """Compute the NMEA checksum by XORing all characters in the data string."""
+    chksum = 0
+    for char in data:
+        chksum ^= ord(char)
+    return format(chksum, '02X')
 
+# ===== TCP Packet Builder Functions =====
+def build_packet_type1(imei, lat, lon):
+    """
+    Packet 1 Format:
+    $EPB,EMR,<IMEI>,NM,<DATE><TIME>,A,<LAT>,N,<LON>,E,0060,000.00,00.000,G,VRN_TMP22,0000000000*XX
+    """
+    now = datetime.now(pytz.timezone('Asia/Kolkata'))
+    date_str = now.strftime('%d%m%Y')  # ddmmyyyy
+    time_str = now.strftime('%H%M%S')  # hhmmss
+    data = f"EPB,EMR,{imei},NM,{date_str}{time_str},A,{lat},N,{lon},E,0060,000.00,00.000,G,VRN_TMP22,0000000000"
+    checksum = compute_nmea_checksum(data)
+    return f"${data}*{checksum}"
+
+def build_packet_type2(imei, lat, lon):
+    """
+    Packet 2 Format:
+    $PVT,LIT1,AIS01.0,EA,11,L,<IMEI>,VRN_TMP22,1,<DATE>,<TIME>,<LAT>,N,<LON>,E,000.00,50,23,44,
+    0.42,0.79,airtel,1,1,26.5,3.8,0,C,26,405,55,0233,34AE55,39295,323,31,39295,55,27,
+    3676,451,25,0,0,0,0001,01,000035,14*XX
+    """
+    now = datetime.now(pytz.timezone('Asia/Kolkata'))
+    date_str = now.strftime('%d%m%Y')
+    time_str = now.strftime('%H%M%S')
+    data = (f"PVT,LIT1,AIS01.0,EA,11,L,{imei},VRN_TMP22,1,{date_str},{time_str},{lat},N,{lon},E,"
+            "000.00,50,23,44,0.42,0.79,airtel,1,1,26.5,3.8,0,C,26,405,55,0233,34AE55,39295,323,"
+            "31,39295,55,27,3676,451,25,0,0,0,0001,01,000035,14")
+    checksum = compute_nmea_checksum(data)
+    return f"${data}*{checksum}"
+
+def build_packet_type3(imei, lat, lon):
+    """
+    Packet 3 Format:
+    $EPB,SEM,<IMEI>,NM,<DATE><TIME>,A,<LAT>,N,<LON>,E,0060,000.00,00.000,G,VRN_TMP22,0000000000*XX
+    """
+    now = datetime.now(pytz.timezone('Asia/Kolkata'))
+    date_str = now.strftime('%d%m%Y')
+    time_str = now.strftime('%H%M%S')
+    data = f"EPB,SEM,{imei},NM,{date_str}{time_str},A,{lat},N,{lon},E,0060,000.00,00.000,G,VRN_TMP22,0000000000"
+    checksum = compute_nmea_checksum(data)
+    return f"${data}*{checksum}"
+
+# ===== HTTP Packet Builder =====
+def build_http_packet(imei, latitude, longitude):
+    """Build an HTTP packet using current date/time."""
+    now = datetime.now(pytz.timezone('Asia/Kolkata'))
+    date_str = now.strftime('%d%m%Y')
+    time_str = now.strftime('%H%M%S')
+    return (f"NRM{imei}01L1{date_str}{time_str}0{latitude}N0{longitude}E404x950D2900"
+            "DC06A72000.00000.0053001811M0827.00airtel")
+
+# ===== Communication Functions =====
 def send_tcp_packet(ip, port, packet):
     """Send a TCP packet using the socket module."""
     try:
@@ -76,6 +118,21 @@ def send_http_data(api_url, data):
     except requests.exceptions.RequestException as e:
         return f"❌ HTTP request failed: {e}", None
 
+def extract_data_from_format(data_format):
+    """Extract IMEI, latitude, and longitude from a provided format string.
+       Markers: '#<15-digit IMEI>#' and '#<lat>,N,' and ',N,<lon>,E,'"""
+    try:
+        imei = re.search(r'#(\d{15})#', data_format).group(1)
+        lat = re.search(r'#(\d+\.\d+),N,', data_format).group(1)
+        lon = re.search(r',N,(\d+\.\d+),E,', data_format).group(1)
+        lat = f"{float(lat):09.6f}"
+        lon = f"{float(lon):09.6f}"
+        return imei, lat, lon
+    except AttributeError:
+        st.error('Invalid format. Please ensure the markers are correctly placed.')
+        log_error("Extract Data", "Invalid format provided")
+        return None, None, None
+
 # ===== Endpoint Mappings (Hidden from the user) =====
 # TCP endpoints for various states
 tcp_endpoints = {
@@ -92,38 +149,6 @@ http_endpoints = {
     "Kerala": "http://103.135.130.119:80",
     "West Bengal": "http://117.221.20.174:80?vltdata",
 }
-
-# ===== Packet Template Functions for TCP =====
-def build_tcp_packet(packet_type, state, imei, date, time_str, lat, lon):
-    state_field = state.upper()
-    if packet_type == "Packet 1":
-        return (f"$NMP,{state_field},AIS01.1,IF,08,L,{imei},VRN_TMP22,1,{date},{time_str},"
-                f"{lat},N,{lon},E,000.00,191.00,48,0611,0.61,0.39,airtel,0,1,25.4,4.0,0,"
-                "C,30,404,90,18C3,E37BB66,-61,164,39150,-73,163,39150,x,x,x,x,x,x,0000,"
-                "10,000001,0.0,0.0,0,(0,0,0)*120")
-    elif packet_type == "Packet 2":
-        return (f"$NMP,{state_field},AIS01.1,IF,08,L,{imei},VRN_TMP23,2,{date},{time_str},"
-                f"{lat},N,{lon},E,001.00,192.00,48,0611,0.62,0.38,airtel,0,1,26.4,4.0,0,"
-                "C,30,405,90,18C3,E37BB66,-62,165,39150,-74,163,39150,y,y,y,y,y,y,0001,"
-                "11,000002,0.1,0.1,1,(1,1,1)*121")
-    elif packet_type == "Packet 3":
-        return (f"$NMP,{state_field},AIS01.1,IF,08,L,{imei},VRN_TMP24,3,{date},{time_str},"
-                f"{lat},N,{lon},E,002.00,193.00,48,0611,0.63,0.37,airtel,0,1,27.4,4.0,0,"
-                "C,30,406,90,18C3,E37BB66,-63,166,39150,-75,163,39150,z,z,z,z,z,z,0002,"
-                "12,000003,0.2,0.2,2,(2,2,2)*122")
-    else:
-        return ""
-
-# ===== Build HTTP Packet Function =====
-def build_http_packet(imei, latitude, longitude):
-    # Use current date/time in Asia/Kolkata timezone for HTTP packet
-    delhi_tz = pytz.timezone('Asia/Kolkata')
-    now = datetime.now(delhi_tz)
-    date_str = now.strftime('%d%m%y')
-    time_str = now.strftime('%H%M%S')
-    # Adjust the packet format as needed; this is a sample structure.
-    return (f"NRM{imei}01L1{date_str}{time_str}0{latitude}N0{longitude}E404x950D2900"
-            "DC06A72000.00000.0053001811M0827.00airtel")
 
 # ===== Main App =====
 st.title("Complete Packet Sender Dashboard")
@@ -152,20 +177,26 @@ with tab_tcp:
     state_tcp = st.selectbox("Select State (TCP)", list(tcp_endpoints.keys()))
     packet_type = st.selectbox("Select Packet Type", ["Packet 1", "Packet 2", "Packet 3"])
     
-    # Input fields for packet parameters
-    imei = st.text_input("IMEI (15 digits)", value="864568069809003", max_chars=15)
-    date = st.text_input("Date (ddmmyyyy)", value="21122024", max_chars=8)
-    time_str = st.text_input("Time (hhmmss)", value="062855", max_chars=6)
-    lat = st.text_input("Latitude", value="20.0704536")
-    lon = st.text_input("Longitude", value="73.9026718")
+    # Input fields for parameters
+    imei = st.text_input("IMEI (15 digits)", value="864568069779867", max_chars=15)
+    lat = st.text_input("Latitude", value="21.258842")
+    lon = st.text_input("Longitude", value="81.559883")
     
     if st.button("Send TCP Packet"):
         if len(imei) != 15 or not imei.isdigit():
             st.error("IMEI must be a 15-digit number.")
             log_error("TCP Packet Sender", f"Invalid IMEI: {imei}")
         else:
-            # Build packet using the chosen template
-            packet = build_tcp_packet(packet_type, state_tcp, imei, date, time_str, lat, lon)
+            # Build the selected packet using current date/time
+            if packet_type == "Packet 1":
+                packet = build_packet_type1(imei, lat, lon)
+            elif packet_type == "Packet 2":
+                packet = build_packet_type2(imei, lat, lon)
+            elif packet_type == "Packet 3":
+                packet = build_packet_type3(imei, lat, lon)
+            else:
+                packet = ""
+            
             endpoint = tcp_endpoints[state_tcp]
             result = send_tcp_packet(endpoint["ip"], endpoint["port"], packet)
             if "✅" in result:
@@ -182,13 +213,12 @@ with tab_http:
     api_url = http_endpoints[state_http]
     st.write(f"Using API endpoint for {state_http}.")
     
-    # Choose input method
     input_method = st.selectbox("Input Method", ["Manual Entry", "Extract from Format"])
     
     if input_method == "Manual Entry":
         imei_list = st.text_area("IMEIs (comma-separated, each 15 digits)")
-        latitude = st.text_input("Latitude")
-        longitude = st.text_input("Longitude")
+        latitude = st.text_input("Latitude", value="21.258842")
+        longitude = st.text_input("Longitude", value="81.559883")
     else:
         data_format = st.text_area("Data Format (include markers: '#<15-digit IMEI>#', '#<lat>,N,' and ',N,<lon>,E,')")
     
@@ -199,7 +229,7 @@ with tab_http:
                 st.error("Failed to extract data from format.")
                 log_activity("HTTP Data Sender", "Failed", "Extraction error")
                 st.stop()
-            imei_list = imei_http  # extraction mode: single IMEI
+            imei_list = imei_http  # Extraction mode: single IMEI
         else:
             imei_list = [x.strip() for x in imei_list.split(",") if x.strip()]
         
@@ -208,7 +238,6 @@ with tab_http:
                 st.error(f"IMEI must be a 15-digit number: {imei}")
                 log_activity("HTTP Data Sender", "Failed", f"Invalid IMEI: {imei}")
                 continue
-            # Build HTTP packet using current timestamp
             packet_http = build_http_packet(imei, latitude, longitude)
             data_payload = {'vltdata': packet_http}
             result_http, response_content = send_http_data(api_url, data_payload)
