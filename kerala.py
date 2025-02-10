@@ -51,7 +51,7 @@ def build_packet_type1(imei, lat, lon):
     """
     now = datetime.now(pytz.timezone('Asia/Kolkata'))
     date_str = now.strftime('%d%m%Y')  # ddmmyyyy
-    time_str = now.strftime('%H%M%S')  # hhmmss
+    time_str = now.strftime('%H%M%S')   # hhmmss
     data = f"EPB,EMR,{imei},NM,{date_str}{time_str},A,{lat},N,{lon},E,0060,000.00,00.000,G,VRN_TMP22,0000000000"
     checksum = compute_nmea_checksum(data)
     return f"${data}*{checksum}"
@@ -156,9 +156,9 @@ st.title("Complete Packet Sender Dashboard")
 # ---------- Authentication ----------
 if not st.session_state.logged_in:
     st.subheader("Please Login")
-    username = st.text_input('Username')
-    password = st.text_input('Password', type='password')
-    if st.button('Login'):
+    username = st.text_input('Username', key="login_username")
+    password = st.text_input('Password', type='password', key="login_password")
+    if st.button('Login', key="login_button"):
         if check_credentials(username, password):
             st.session_state.logged_in = True
             st.success('Login successful!')
@@ -174,15 +174,15 @@ tab_tcp, tab_http, tab_logs = st.tabs(["TCP Packet Sender", "HTTP Manual Data Se
 # --- Tab 1: TCP Packet Sender ---
 with tab_tcp:
     st.header("TCP Packet Sender (Endpoints Hidden)")
-    state_tcp = st.selectbox("Select State (TCP)", list(tcp_endpoints.keys()))
-    packet_type = st.selectbox("Select Packet Type", ["Packet 1", "Packet 2", "Packet 3"])
+    state_tcp = st.selectbox("Select State (TCP)", list(tcp_endpoints.keys()), key="tcp_state")
+    packet_type = st.selectbox("Select Packet Type", ["Packet 1", "Packet 2", "Packet 3"], key="tcp_packet_type")
     
-    # Input fields for parameters
-    imei = st.text_input("IMEI (15 digits)", value="864568069779867", max_chars=15)
-    lat = st.text_input("Latitude", value="21.258842")
-    lon = st.text_input("Longitude", value="81.559883")
+    # Input fields for parameters with unique keys
+    imei = st.text_input("IMEI (15 digits)", value="864568069779867", max_chars=15, key="tcp_imei")
+    lat = st.text_input("Latitude", value="21.258842", key="tcp_lat")
+    lon = st.text_input("Longitude", value="81.559883", key="tcp_lon")
     
-    if st.button("Send TCP Packet"):
+    if st.button("Send TCP Packet", key="tcp_send"):
         if len(imei) != 15 or not imei.isdigit():
             st.error("IMEI must be a 15-digit number.")
             log_error("TCP Packet Sender", f"Invalid IMEI: {imei}")
@@ -209,20 +209,20 @@ with tab_tcp:
 # --- Tab 2: HTTP Manual Data Sender ---
 with tab_http:
     st.header("HTTP Manual Data Sender")
-    state_http = st.selectbox("Select State (HTTP)", list(http_endpoints.keys()))
+    state_http = st.selectbox("Select State (HTTP)", list(http_endpoints.keys()), key="http_state")
     api_url = http_endpoints[state_http]
     st.write(f"Using API endpoint for {state_http}.")
     
-    input_method = st.selectbox("Input Method", ["Manual Entry", "Extract from Format"])
+    input_method = st.selectbox("Input Method", ["Manual Entry", "Extract from Format"], key="http_input_method")
     
     if input_method == "Manual Entry":
-        imei_list = st.text_area("IMEIs (comma-separated, each 15 digits)")
-        latitude = st.text_input("Latitude", value="21.258842")
-        longitude = st.text_input("Longitude", value="81.559883")
+        imei_list = st.text_area("IMEIs (comma-separated, each 15 digits)", key="http_imei_list")
+        latitude = st.text_input("Latitude", value="21.258842", key="http_lat")
+        longitude = st.text_input("Longitude", value="81.559883", key="http_lon")
     else:
-        data_format = st.text_area("Data Format (include markers: '#<15-digit IMEI>#', '#<lat>,N,' and ',N,<lon>,E,')")
+        data_format = st.text_area("Data Format (include markers: '#<15-digit IMEI>#', '#<lat>,N,' and ',N,<lon>,E,')", key="http_data_format")
     
-    if st.button("Send HTTP Data"):
+    if st.button("Send HTTP Data", key="http_send"):
         if input_method == "Extract from Format":
             imei_http, latitude, longitude = extract_data_from_format(data_format)
             if not imei_http or not latitude or not longitude:
