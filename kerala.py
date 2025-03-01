@@ -142,6 +142,7 @@ tcp_endpoints = {
     "Chandigarh": {"ip": "164.100.64.250", "port": 9031},
     "Maharashtra": {"ip": "103.91.244.23", "port": 4030},
     "Jammu": {"ip": "164.52.220.32", "port": 2049},
+    "maharashtra_mining":{"ip":"43.205.159.137", "port":20006}
 }
 
 # HTTP endpoints for manual data sender (for Kerala and West Bengal)
