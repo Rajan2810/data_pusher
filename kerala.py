@@ -143,7 +143,7 @@ tcp_endpoints = {
     "Maharashtra": {"ip": "103.91.244.23", "port": 4030},
     "Jammu": {"ip": "164.52.220.32", "port": 2049},
     "maharashtra_mining":{"ip":"43.205.159.137", "port":20006},
-    "MP":{"ip":"mpdevice.vltsecurity.com","port":8123}
+    "MP":{"ip":"164.52.211.243","port":8123}
 }
 
 # HTTP endpoints for manual data sender (for Kerala and West Bengal)
