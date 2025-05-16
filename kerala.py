@@ -640,9 +640,7 @@ def main():
     
     with tab_logs:
         render_logs_tab()
-    
-    with tab_settings:
-        render_settings_tab()
+
 
 if __name__ == "__main__":
     main()
