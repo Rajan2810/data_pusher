@@ -44,7 +44,7 @@ def compute_nmea_checksum(data: str) -> str:
     return format(chksum, '02X')
 
 # ===== TCP Packet Builder Functions =====
-def build_packet_type1(imei, lat, lon):
+def build_packet_type1(imei, lat, lon,vno):
     """
     Packet 1 Format:
     $EPB,EMR,<IMEI>,NM,<DATE><TIME>,A,<LAT>,N,<LON>,E,0060,000.00,00.000,G,VRN_TMP22,0000000000*XX
@@ -56,7 +56,7 @@ def build_packet_type1(imei, lat, lon):
     checksum = compute_nmea_checksum(data)
     return f"${data}*{checksum}"
 
-def build_packet_type2(imei, lat, lon):
+def build_packet_type2(imei, lat, lon, vno):
     """
     Packet 2 Format:
     $PVT,LIT1,AIS01.0,EA,11,L,<IMEI>,<VNO>,1,<DATE>,<TIME>,<LAT>,N,<LON>,E,000.00,50,23,44,
@@ -72,7 +72,7 @@ def build_packet_type2(imei, lat, lon):
     checksum = compute_nmea_checksum(data)
     return f"${data}*{checksum}"
 
-def build_packet_type3(imei, lat, lon):
+def build_packet_type3(imei, lat, lon, vno):
     """
     Packet 3 Format:
     $EPB,SEM,<IMEI>,NM,<DATE><TIME>,A,<LAT>,N,<LON>,E,0060,000.00,00.000,G,<VNO>,0000000000*XX
@@ -195,11 +195,11 @@ with tab_tcp:
         else:
             # Build the selected packet using current date/time
             if packet_type == "Packet 1":
-                packet = build_packet_type1(imei, lat, lon)
+                packet = build_packet_type1(imei, lat, lon, vno)
             elif packet_type == "Packet 2":
-                packet = build_packet_type2(imei, lat, lon)
+                packet = build_packet_type2(imei, lat, lon, vno)
             elif packet_type == "Packet 3":
-                packet = build_packet_type3(imei, lat, lon)
+                packet = build_packet_type3(imei, lat, lon, vno)
             else:
                 packet = ""
             
