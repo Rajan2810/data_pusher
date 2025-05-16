@@ -643,7 +643,7 @@ def main():
         "TCP Packet Sender", 
         "HTTP Data Sender", 
         "Activity Logs", 
-        "Settings"
+        
     ])
     
     # Display content based on selected tab
