@@ -137,7 +137,8 @@ def extract_data_from_format(data_format):
 # TCP endpoints for various states
 tcp_endpoints = {
     "Chhattisgarh": {"ip": "164.100.64.209", "port": 6004},
-    "Bihar": {"ip": "164.100.64.230", "port": 9031},
+    "Bihar_primary": {"ip": "164.100.64.230", "port": 9031},
+    "Bihar_emergency": {"ip": "164.100.64.230", "port": 9032},
     "Uttarakhand": {"ip": "103.116.27.26", "port": 9999},
     "Chandigarh": {"ip": "164.100.64.250", "port": 9031},
     "Maharashtra": {"ip": "103.91.244.23", "port": 4030},
