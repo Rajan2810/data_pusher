@@ -587,21 +587,6 @@ def render_logs_tab():
 
 
     
-    with st.expander("About"):
-        st.write("""
-        ## Packet Sender Dashboard
-        
-        This application allows sending TCP and HTTP packets to various state servers for vehicle tracking systems.
-        
-        ### Features:
-        - Send TCP packets in various formats
-        - Send HTTP data
-        - View logs and errors
-        - Secure authentication
-        
-        ### Version: 2.0
-        Last Updated: May 16, 2025
-        """)
 
 # ===== Main Application =====
 def main():
@@ -639,7 +624,7 @@ def main():
         return
     
     # Main tabs for functionality
-    tab_tcp, tab_http, tab_logs, tab_settings = st.tabs([
+    tab_tcp, tab_http, tab_logs = st.tabs([
         "TCP Packet Sender", 
         "HTTP Data Sender", 
         "Activity Logs", 
