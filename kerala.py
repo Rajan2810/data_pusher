@@ -417,7 +417,7 @@ def render_http_sender_tab():
         )
     
     api_url = HTTP_ENDPOINTS[state_http]
-    st.info(f"Using API endpoint: {api_url}")
+    
     
     if input_method == "Manual Entry":
         col1, col2 = st.columns(2)
