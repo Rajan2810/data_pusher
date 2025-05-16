@@ -52,21 +52,21 @@ def build_packet_type1(imei, lat, lon):
     now = datetime.now(pytz.timezone('Asia/Kolkata'))
     date_str = now.strftime('%d%m%Y')  # ddmmyyyy
     time_str = now.strftime('%H%M%S')   # hhmmss
-    data = f"EPB,EMR,{imei},NM,{date_str}{time_str},A,{lat},N,{lon},E,0060,000.00,00.000,G,VRN_TMP22,0000000000"
+    data = f"EPB,EMR,{imei},NM,{date_str}{time_str},A,{lat},N,{lon},E,0060,000.00,00.000,G,{vno},0000000000"
     checksum = compute_nmea_checksum(data)
     return f"${data}*{checksum}"
 
 def build_packet_type2(imei, lat, lon):
     """
     Packet 2 Format:
-    $PVT,LIT1,AIS01.0,EA,11,L,<IMEI>,VRN_TMP22,1,<DATE>,<TIME>,<LAT>,N,<LON>,E,000.00,50,23,44,
+    $PVT,LIT1,AIS01.0,EA,11,L,<IMEI>,<VNO>,1,<DATE>,<TIME>,<LAT>,N,<LON>,E,000.00,50,23,44,
     0.42,0.79,airtel,1,1,26.5,3.8,0,C,26,405,55,0233,34AE55,39295,323,31,39295,55,27,
     3676,451,25,0,0,0,0001,01,000035,14*XX
     """
     now = datetime.now(pytz.timezone('Asia/Kolkata'))
     date_str = now.strftime('%d%m%Y')
     time_str = now.strftime('%H%M%S')
-    data = (f"PVT,LIT1,AIS01.0,EA,11,L,{imei},VRN_TMP22,1,{date_str},{time_str},{lat},N,{lon},E,"
+    data = (f"PVT,LIT1,AIS01.0,EA,11,L,{imei},{vno},1,{date_str},{time_str},{lat},N,{lon},E,"
             "000.00,50,23,44,0.42,0.79,airtel,1,1,26.5,3.8,0,C,26,405,55,0233,34AE55,39295,323,"
             "31,39295,55,27,3676,451,25,0,0,0,0001,01,000035,14")
     checksum = compute_nmea_checksum(data)
@@ -75,12 +75,12 @@ def build_packet_type2(imei, lat, lon):
 def build_packet_type3(imei, lat, lon):
     """
     Packet 3 Format:
-    $EPB,SEM,<IMEI>,NM,<DATE><TIME>,A,<LAT>,N,<LON>,E,0060,000.00,00.000,G,VRN_TMP22,0000000000*XX
+    $EPB,SEM,<IMEI>,NM,<DATE><TIME>,A,<LAT>,N,<LON>,E,0060,000.00,00.000,G,<VNO>,0000000000*XX
     """
     now = datetime.now(pytz.timezone('Asia/Kolkata'))
     date_str = now.strftime('%d%m%Y')
     time_str = now.strftime('%H%M%S')
-    data = f"EPB,SEM,{imei},NM,{date_str}{time_str},A,{lat},N,{lon},E,0060,000.00,00.000,G,VRN_TMP22,0000000000"
+    data = f"EPB,SEM,{imei},NM,{date_str}{time_str},A,{lat},N,{lon},E,0060,000.00,00.000,G,{vno},0000000000"
     checksum = compute_nmea_checksum(data)
     return f"${data}*{checksum}"
 
@@ -178,7 +178,7 @@ tab_tcp, tab_http, tab_logs = st.tabs(["TCP Packet Sender", "HTTP Manual Data Se
 
 # --- Tab 1: TCP Packet Sender ---
 with tab_tcp:
-    st.header("TCP Packet Sender (Endpoints Hidden)")
+    st.header("TCP Packet Sender")
     state_tcp = st.selectbox("Select State (TCP)", list(tcp_endpoints.keys()), key="tcp_state")
     packet_type = st.selectbox("Select Packet Type", ["Packet 1", "Packet 2", "Packet 3"], key="tcp_packet_type")
     
@@ -186,6 +186,7 @@ with tab_tcp:
     imei = st.text_input("IMEI (15 digits)", value="864568069779867", max_chars=15, key="tcp_imei")
     lat = st.text_input("Latitude", value="21.258842", key="tcp_lat")
     lon = st.text_input("Longitude", value="81.559883", key="tcp_lon")
+    vehicle_number = st.text_input("VNO.", value="VRN_TMP22", key="vno")
     
     if st.button("Send TCP Packet", key="tcp_send"):
         if len(imei) != 15 or not imei.isdigit():
