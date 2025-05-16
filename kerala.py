@@ -585,25 +585,7 @@ def render_logs_tab():
         else:
             st.info("No response history yet.")
 
-def render_settings_tab():
-    """Render the settings tab."""
-    st.header("Settings")
-    
-    with st.expander("TCP Endpoints Configuration"):
-        st.write("Current TCP Endpoints:")
-        df_tcp = pd.DataFrame([
-            {"State": state, "IP": endpoint["ip"], "Port": endpoint["port"]}
-            for state, endpoint in TCP_ENDPOINTS.items()
-        ])
-        st.dataframe(df_tcp, use_container_width=True)
-    
-    with st.expander("HTTP Endpoints Configuration"):
-        st.write("Current HTTP Endpoints:")
-        df_http = pd.DataFrame([
-            {"State": state, "URL": url}
-            for state, url in HTTP_ENDPOINTS.items()
-        ])
-        st.dataframe(df_http, use_container_width=True)
+
     
     with st.expander("About"):
         st.write("""
