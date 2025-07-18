@@ -34,7 +34,7 @@ HTTP_ENDPOINTS = {
 }
 
 # Timeout settings
-SOCKET_TIMEOUT = 10  # seconds
+SOCKET_TIMEOUT = 15  # seconds
 HTTP_TIMEOUT = 15    # seconds
 
 # Default values
