@@ -25,6 +25,7 @@ TCP_ENDPOINTS = {
     "MP": {"ip": "164.52.211.243", "port": 8123},
     "Goa_Emergency": {"ip": "164.100.64.247", "port": 9032},
     "Goa_Primary": {"ip": "164.100.64.226", "port": 9031}
+    "UP_Emergency": {"ip": "103.195.217.161", "port": 9032},
 }
 
 # HTTP endpoints for manual data sender
