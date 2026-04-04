@@ -23,6 +23,7 @@ TCP_ENDPOINTS = {
     "Jammu": {"ip": "164.52.220.32", "port": 2049},
     "Maharashtra_mining": {"ip": "43.205.159.137", "port": 20006},
     "MP": {"ip": "164.52.211.243", "port": 8123},
+    "RJ_Primary": {"ip": "164.100.64.204", "port": 9031}
     "Goa_Emergency": {"ip": "164.100.64.247", "port": 9032},
     "Goa_Primary": {"ip": "164.100.64.226", "port": 9031}
 }
